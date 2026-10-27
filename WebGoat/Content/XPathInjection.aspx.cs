@@ -6,6 +6,7 @@ using System.Web.UI;
 using System.Web.UI.WebControls;
 using System.Xml;
 using System.Xml.XPath;
+using System.Xml.Xsl;
 
 namespace OWASP.WebGoat.NET
 {
@@ -25,12 +26,72 @@ namespace OWASP.WebGoat.NET
         {
             XmlDocument xDoc = new XmlDocument();
             xDoc.LoadXml(xml);
-            XmlNodeList list = xDoc.SelectNodes("//salesperson[state='" + state + "']");
-            if (list.Count > 0)
+
+            XPathExpression expr = XPathExpression.Compile("//salesperson[state=$state]");
+            expr.SetContext(new SimpleXsltContext(state));
+
+            XPathNavigator navigator = xDoc.CreateNavigator();
+            XPathNodeIterator iterator = navigator.Select(expr);
+
+            List<XmlNode> matchedNodes = new List<XmlNode>();
+            while (iterator.MoveNext())
+            {
+                IHasXmlNode current = iterator.Current as IHasXmlNode;
+                if (current != null)
+                {
+                    matchedNodes.Add(current.GetNode());
+                }
+            }
+
+            if (matchedNodes.Count > 0)
             {
 
             }
 
+        }
+
+        private class SimpleXsltContext : XsltContext
+        {
+            private readonly string state;
+
+            public SimpleXsltContext(string state)
+            {
+                this.state = state;
+            }
+
+            public override bool Whitespace { get { return true; } }
+            public override int CompareDocument(string baseUri, string nextbaseUri) { return 0; }
+            public override bool PreserveWhitespace(XPathNavigator node) { return true; }
+            public override IXsltContextFunction ResolveFunction(string prefix, string name, XPathResultType[] ArgTypes) { return null; }
+
+            public override IXsltContextVariable ResolveVariable(string prefix, string name)
+            {
+                if (name == "state")
+                {
+                    return new SimpleXsltVariable(this.state);
+                }
+
+                return null;
+            }
+        }
+
+        private class SimpleXsltVariable : IXsltContextVariable
+        {
+            private readonly string value;
+
+            public SimpleXsltVariable(string value)
+            {
+                this.value = value;
+            }
+
+            public bool IsLocal { get { return true; } }
+            public bool IsParam { get { return true; } }
+            public XPathResultType VariableType { get { return XPathResultType.String; } }
+
+            public object Evaluate(XsltContext xsltContext)
+            {
+                return this.value;
+            }
         }
     }
 }
